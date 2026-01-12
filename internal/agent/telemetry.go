@@ -15,10 +15,17 @@ func (a *Agent) sendTelemetry(ctx context.Context) error {
 		return fmt.Errorf("failed to collect telemetry: %w", err)
 	}
 
-	// Get agent ID
-	agentID, err := a.identity.GetAgentID()
-	if err != nil {
-		return fmt.Errorf("failed to get agent ID: %w", err)
+	// Get agent ID - prefer from config, fallback to certificate fingerprint
+	var agentID string
+	if a.agentConfig != nil && a.agentConfig.AgentID != "" {
+		agentID = a.agentConfig.AgentID
+	} else {
+		// Fallback to certificate fingerprint
+		id, err := a.identity.GetAgentID()
+		if err != nil {
+			return fmt.Errorf("failed to get agent ID: %w", err)
+		}
+		agentID = id
 	}
 
 	// Convert to model format

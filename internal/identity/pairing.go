@@ -19,7 +19,7 @@ type PairingResponse struct {
 	CACertificate string `json:"ca_certificate"`
 }
 
-func (m *Manager) Pair(controlPlaneURL string, pairingToken string, hostname string) error {
+func (m *Manager) Pair(controlPlaneURL string, pairingToken string, hostname string, agentID *string) error {
 	// Get CSR
 	csrPEM, err := m.GetCSR()
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/metabinary-ltd/metanexus-agent/internal/actions"
 	"github.com/metabinary-ltd/metanexus-agent/internal/collect"
+	"github.com/metabinary-ltd/metanexus-agent/internal/config"
 	"github.com/metabinary-ltd/metanexus-agent/internal/identity"
 	"github.com/metabinary-ltd/metanexus-agent/internal/transport"
 )
@@ -20,6 +21,7 @@ type Config struct {
 
 type Agent struct {
 	config     *Config
+	agentConfig *config.Config
 	identity   *identity.Manager
 	transport  *transport.Client
 	collector  *collect.Collector
@@ -27,21 +29,38 @@ type Agent struct {
 }
 
 func New(configPath string) (*Agent, error) {
-	// TODO: Load config from file
-	config := &Config{
-		ControlPlaneURL:   "http://localhost:3000",
-		DataDir:           "/var/lib/metanexus-agent",
-		TelemetryInterval: 30 * time.Second,
+	// Load config from file
+	agentConfig, err := config.Load(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Convert to internal config format
+	internalConfig := &Config{
+		ControlPlaneURL:   agentConfig.ControlPlaneURL,
+		DataDir:           agentConfig.DataDir,
+		TelemetryInterval: agentConfig.TelemetryInterval,
+	}
+
+	// Use defaults if not set
+	if internalConfig.ControlPlaneURL == "" {
+		internalConfig.ControlPlaneURL = "http://localhost:3000"
+	}
+	if internalConfig.DataDir == "" {
+		internalConfig.DataDir = "/var/lib/metanexus-agent"
+	}
+	if internalConfig.TelemetryInterval == 0 {
+		internalConfig.TelemetryInterval = 30 * time.Second
 	}
 
 	// Initialize identity manager
-	identityMgr, err := identity.NewManager(config.DataDir)
+	identityMgr, err := identity.NewManager(internalConfig.DataDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize identity: %w", err)
 	}
 
 	// Initialize transport client
-	transportClient, err := transport.NewClient(config.ControlPlaneURL, identityMgr)
+	transportClient, err := transport.NewClient(internalConfig.ControlPlaneURL, identityMgr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize transport: %w", err)
 	}
@@ -53,11 +72,12 @@ func New(configPath string) (*Agent, error) {
 	actionExec := actions.NewExecutor(identityMgr, transportClient)
 
 	return &Agent{
-		config:     config,
-		identity:   identityMgr,
-		transport:  transportClient,
-		collector:  collector,
-		actionExec: actionExec,
+		config:      internalConfig,
+		agentConfig: agentConfig,
+		identity:    identityMgr,
+		transport:   transportClient,
+		collector:   collector,
+		actionExec:  actionExec,
 	}, nil
 }
 

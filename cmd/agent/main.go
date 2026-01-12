@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/metabinary-ltd/metanexus-agent/internal/agent"
+	"github.com/metabinary-ltd/metanexus-agent/internal/config"
 	"github.com/metabinary-ltd/metanexus-agent/internal/identity"
 )
 
@@ -69,16 +70,26 @@ func main() {
 }
 
 func handlePairing(controlPlaneURL, pairingToken, configPath string) error {
+	// Load or create config
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Update control plane URL from command line
+	cfg.ControlPlaneURL = controlPlaneURL
+
 	// Get hostname
 	hostname, err := os.Hostname()
 	if err != nil {
 		return fmt.Errorf("failed to get hostname: %w", err)
 	}
 
-	// Determine data directory (use default for pairing)
-	dataDir := "/var/lib/metanexus-agent"
-	if configPath != "" {
-		// TODO: Load from config file if needed
+	// Use data directory from config or default
+	dataDir := cfg.DataDir
+	if dataDir == "" {
+		dataDir = "/var/lib/metanexus-agent"
+		cfg.DataDir = dataDir
 	}
 
 	// Initialize identity manager
@@ -88,8 +99,16 @@ func handlePairing(controlPlaneURL, pairingToken, configPath string) error {
 	}
 
 	// Perform pairing
-	if err := identityMgr.Pair(controlPlaneURL, pairingToken, hostname); err != nil {
+	var agentID string
+	if err := identityMgr.Pair(controlPlaneURL, pairingToken, hostname, &agentID); err != nil {
 		return fmt.Errorf("pairing failed: %w", err)
+	}
+
+	// Save agent_id and control_plane_url to config
+	cfg.AgentID = agentID
+	if err := config.Save(configPath, cfg); err != nil {
+		log.Printf("Warning: Failed to save config: %v", err)
+		// Don't fail pairing if config save fails
 	}
 
 	return nil
