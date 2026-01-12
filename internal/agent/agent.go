@@ -69,7 +69,7 @@ func New(configPath string) (*Agent, error) {
 	collector := collect.New()
 
 	// Initialize action executor
-	actionExec := actions.NewExecutor(identityMgr, transportClient)
+	actionExec := actions.NewExecutor(identityMgr, transportClient, internalConfig.DataDir)
 
 	return &Agent{
 		config:      internalConfig,
@@ -119,14 +119,24 @@ func (a *Agent) telemetryLoop(ctx context.Context) {
 }
 
 func (a *Agent) actionLoop(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
+	// Refresh catalog every 5 minutes
+	catalogTicker := time.NewTicker(5 * time.Minute)
+	defer catalogTicker.Stop()
+
+	// Poll for actions every 10 seconds
+	actionTicker := time.NewTicker(10 * time.Second)
+	defer actionTicker.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-catalogTicker.C:
+			// Refresh catalog periodically
+			if err := a.actionExec.RefreshCatalog(); err != nil {
+				log.Printf("Failed to refresh action catalog: %v", err)
+			}
+		case <-actionTicker.C:
 			// TODO: Poll for actions and execute
 			_ = a.actionExec
 		}
