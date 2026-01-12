@@ -69,6 +69,12 @@ func (m *Manager) Pair(controlPlaneURL string, pairingToken string, hostname str
 		return fmt.Errorf("failed to save CA certificate: %w", err)
 	}
 
+	// Save agent ID
+	agentIDPath := filepath.Join(m.dataDir, "agent.id")
+	if err := os.WriteFile(agentIDPath, []byte(pairingResp.AgentID), 0644); err != nil {
+		return fmt.Errorf("failed to save agent ID: %w", err)
+	}
+
 	// Reload identity to include certificate
 	if err := m.loadIdentity(); err != nil {
 		return fmt.Errorf("failed to reload identity: %w", err)
