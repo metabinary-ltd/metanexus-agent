@@ -5,10 +5,11 @@ package policy
 type Capability string
 
 const (
-	CapabilityDocker     Capability = "docker"
-	CapabilitySystem     Capability = "system"
-	CapabilityNetwork    Capability = "network"
-	CapabilityIdentity   Capability = "identity"
+	CapabilityDocker          Capability = "docker"
+	CapabilitySystem          Capability = "system"
+	CapabilityNetwork         Capability = "network"
+	CapabilityIdentity        Capability = "identity"
+	CapabilityCommandExecution Capability = "command-execution"
 )
 
 type Policy struct {

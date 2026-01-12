@@ -33,6 +33,11 @@ func NewExecutor(identityMgr *identity.Manager, transportClient *transport.Clien
 	}
 	exec.RegisterVerb("health-snapshot", NewHealthSnapshotVerb())
 	exec.RegisterVerb("rotate-identity", NewRotateIdentityVerb(identityMgr))
+	exec.RegisterVerb("execute-command", NewExecuteCommandVerb())
+	exec.RegisterVerb("list-network-interfaces", NewListNetworkInterfacesVerb())
+	exec.RegisterVerb("list-arp-neighbors", NewListARPNeighborsVerb())
+	exec.RegisterVerb("list-routes", NewListRoutesVerb())
+	exec.RegisterVerb("check-updates", NewCheckUpdatesVerb())
 
 	// Load catalog on startup
 	if err := exec.loadCatalog(); err != nil {

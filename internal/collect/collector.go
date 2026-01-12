@@ -61,10 +61,13 @@ type TopologyData struct {
 }
 
 type InterfaceInfo struct {
-	Name    string
-	IP      string
-	Netmask string
-	MAC     string
+	Name       string
+	IP         string
+	Netmask    string
+	MAC        string
+	IsIPv6     bool
+	IsLoopback bool
+	Flags      string
 }
 
 type ARPNeighbor struct {
@@ -80,6 +83,14 @@ type ContainerInfo struct {
 	Status  string
 	Networks []string
 	IP      string
+}
+
+type RouteInfo struct {
+	Destination string
+	Gateway     string
+	Interface   string
+	Flags       string
+	Metric      int
 }
 
 func (c *Collector) CollectAll() (*TelemetryData, error) {

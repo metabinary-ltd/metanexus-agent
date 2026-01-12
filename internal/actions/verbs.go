@@ -3,6 +3,12 @@ package actions
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"os/user"
+	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -198,5 +204,407 @@ func (v *RotateIdentityVerb) Execute(params map[string]interface{}) (map[string]
 	return map[string]interface{}{
 		"status":  "completed",
 		"message": "New identity generated. Re-pairing required.",
+	}, nil
+}
+
+type ExecuteCommandVerb struct {
+	// No dependencies needed
+}
+
+func NewExecuteCommandVerb() *ExecuteCommandVerb {
+	return &ExecuteCommandVerb{}
+}
+
+func extractString(params map[string]interface{}, key string, defaultValue string) string {
+	if val, ok := params[key].(string); ok {
+		return val
+	}
+	return defaultValue
+}
+
+func extractInt(params map[string]interface{}, key string, defaultValue int) int {
+	if val, ok := params[key].(float64); ok {
+		return int(val)
+	}
+	if val, ok := params[key].(int); ok {
+		return val
+	}
+	return defaultValue
+}
+
+func extractBool(params map[string]interface{}, key string, defaultValue bool) bool {
+	if val, ok := params[key].(bool); ok {
+		return val
+	}
+	return defaultValue
+}
+
+func extractStringArray(params map[string]interface{}, key string) []string {
+	if val, ok := params[key].([]interface{}); ok {
+		result := make([]string, 0, len(val))
+		for _, v := range val {
+			if str, ok := v.(string); ok {
+				result = append(result, str)
+			}
+		}
+		return result
+	}
+	return nil
+}
+
+func extractMap(params map[string]interface{}, key string) map[string]string {
+	if val, ok := params[key].(map[string]interface{}); ok {
+		result := make(map[string]string)
+		for k, v := range val {
+			if str, ok := v.(string); ok {
+				result[k] = str
+			}
+		}
+		return result
+	}
+	return nil
+}
+
+func (v *ExecuteCommandVerb) Execute(params map[string]interface{}) (map[string]interface{}, error) {
+	// Extract parameters
+	command := extractString(params, "command", "")
+	if command == "" {
+		return nil, fmt.Errorf("command parameter is required")
+	}
+
+	args := extractStringArray(params, "args")
+	workingDir := extractString(params, "working_directory", "")
+	timeout := extractInt(params, "timeout_seconds", 300)
+	env := extractMap(params, "environment")
+	stdin := extractString(params, "stdin", "")
+	userStr := extractString(params, "user", "")
+	groupStr := extractString(params, "group", "")
+	captureStdout := extractBool(params, "capture_stdout", true)
+	captureStderr := extractBool(params, "capture_stderr", true)
+	expectedExitCode := extractInt(params, "expected_exit_code", 0)
+	retryCount := extractInt(params, "retry_count", 0)
+	retryDelay := extractInt(params, "retry_delay_seconds", 1)
+
+	// Execute with retry logic
+	var lastErr error
+	var lastResult map[string]interface{}
+
+	for attempt := 0; attempt <= retryCount; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(retryDelay) * time.Second)
+		}
+
+		result, err := v.executeCommand(
+			command, args, workingDir, timeout, env, stdin,
+			userStr, groupStr, captureStdout, captureStderr,
+		)
+
+		if err != nil {
+			lastErr = err
+			lastResult = result
+			continue
+		}
+
+		// Check exit code if specified
+		if exitCode, ok := result["exit_code"].(int); ok {
+			if exitCode != expectedExitCode {
+				lastErr = fmt.Errorf("command exited with code %d, expected %d", exitCode, expectedExitCode)
+				lastResult = result
+				continue
+			}
+		}
+
+		return result, nil
+	}
+
+	// All retries failed
+	if lastResult != nil {
+		return lastResult, lastErr
+	}
+	return nil, lastErr
+}
+
+func (v *ExecuteCommandVerb) executeCommand(
+	command string,
+	args []string,
+	workingDir string,
+	timeoutSeconds int,
+	env map[string]string,
+	stdin string,
+	userStr string,
+	groupStr string,
+	captureStdout bool,
+	captureStderr bool,
+) (map[string]interface{}, error) {
+	startTime := time.Now()
+
+	// Create command context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSeconds)*time.Second)
+	defer cancel()
+
+	// Create command
+	cmd := exec.CommandContext(ctx, command, args...)
+
+	// Set working directory
+	if workingDir != "" {
+		cmd.Dir = workingDir
+	}
+
+	// Set environment variables
+	if len(env) > 0 {
+		cmd.Env = os.Environ()
+		for k, v := range env {
+			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+		}
+	}
+
+	// Set user/group if specified
+	if userStr != "" || groupStr != "" {
+		var uid, gid int
+
+		if userStr != "" {
+			u, err := user.Lookup(userStr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to lookup user %s: %w", userStr, err)
+			}
+			uid, err = strconv.Atoi(u.Uid)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse user UID: %w", err)
+			}
+		}
+
+		if groupStr != "" {
+			g, err := user.LookupGroup(groupStr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to lookup group %s: %w", groupStr, err)
+			}
+			gid, err = strconv.Atoi(g.Gid)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse group GID: %w", err)
+			}
+		}
+
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Credential: &syscall.Credential{
+				Uid: uint32(uid),
+				Gid: uint32(gid),
+			},
+		}
+	}
+
+	// Set up stdin
+	if stdin != "" {
+		cmd.Stdin = strings.NewReader(stdin)
+	}
+
+	// Capture output
+	var stdout, stderr strings.Builder
+	if captureStdout {
+		cmd.Stdout = &stdout
+	} else {
+		cmd.Stdout = nil
+	}
+
+	if captureStderr {
+		cmd.Stderr = &stderr
+	} else {
+		cmd.Stderr = nil
+	}
+
+	// Execute command
+	err := cmd.Run()
+	duration := time.Since(startTime)
+
+	// Get exit code
+	exitCode := 0
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			exitCode = exitError.ExitCode()
+		} else {
+			// Context timeout or other error
+			if ctx.Err() == context.DeadlineExceeded {
+				return map[string]interface{}{
+					"status":    "timeout",
+					"error":      "command execution timed out",
+					"duration":   duration.Seconds(),
+					"exit_code":  -1,
+					"stdout":     stdout.String(),
+					"stderr":     stderr.String(),
+				}, fmt.Errorf("command execution timed out after %d seconds", timeoutSeconds)
+			}
+			return map[string]interface{}{
+				"status":    "error",
+				"error":     err.Error(),
+				"duration":  duration.Seconds(),
+				"exit_code": -1,
+				"stdout":    stdout.String(),
+				"stderr":    stderr.String(),
+			}, err
+		}
+	}
+
+	result := map[string]interface{}{
+		"status":    "completed",
+		"exit_code": exitCode,
+		"duration":  duration.Seconds(),
+	}
+
+	if captureStdout {
+		result["stdout"] = stdout.String()
+	}
+	if captureStderr {
+		result["stderr"] = stderr.String()
+	}
+
+	return result, nil
+}
+
+type ListNetworkInterfacesVerb struct {
+	collector *collect.Collector
+}
+
+func NewListNetworkInterfacesVerb() *ListNetworkInterfacesVerb {
+	return &ListNetworkInterfacesVerb{
+		collector: collect.New(),
+	}
+}
+
+func (v *ListNetworkInterfacesVerb) Execute(params map[string]interface{}) (map[string]interface{}, error) {
+	networkData, err := v.collector.CollectNetwork()
+	if err != nil {
+		return nil, fmt.Errorf("failed to collect network data: %w", err)
+	}
+
+	// Format interfaces for response
+	interfaces := make([]map[string]interface{}, len(networkData.Interfaces))
+	for i, iface := range networkData.Interfaces {
+		interfaces[i] = map[string]interface{}{
+			"name":        iface.Name,
+			"ip":          iface.IP,
+			"network":     iface.Netmask,
+			"mac":         iface.MAC,
+			"is_ipv6":     iface.IsIPv6,
+			"is_loopback": iface.IsLoopback,
+			"flags":       iface.Flags,
+		}
+	}
+
+	return map[string]interface{}{
+		"status":     "completed",
+		"interfaces": interfaces,
+		"count":      len(interfaces),
+	}, nil
+}
+
+type ListARPNeighborsVerb struct {
+	collector *collect.Collector
+}
+
+func NewListARPNeighborsVerb() *ListARPNeighborsVerb {
+	return &ListARPNeighborsVerb{
+		collector: collect.New(),
+	}
+}
+
+func (v *ListARPNeighborsVerb) Execute(params map[string]interface{}) (map[string]interface{}, error) {
+	networkData, err := v.collector.CollectNetwork()
+	if err != nil {
+		return nil, fmt.Errorf("failed to collect network data: %w", err)
+	}
+
+	// Format ARP neighbors for response
+	neighbors := make([]map[string]interface{}, len(networkData.ARPNeighbors))
+	for i, neighbor := range networkData.ARPNeighbors {
+		neighbors[i] = map[string]interface{}{
+			"ip":        neighbor.IP,
+			"mac":       neighbor.MAC,
+			"interface": neighbor.Interface,
+		}
+	}
+
+	return map[string]interface{}{
+		"status":    "completed",
+		"neighbors": neighbors,
+		"count":     len(neighbors),
+	}, nil
+}
+
+type ListRoutesVerb struct {
+	collector *collect.Collector
+}
+
+func NewListRoutesVerb() *ListRoutesVerb {
+	return &ListRoutesVerb{
+		collector: collect.New(),
+	}
+}
+
+func (v *ListRoutesVerb) Execute(params map[string]interface{}) (map[string]interface{}, error) {
+	routes, err := v.collector.CollectRoutes()
+	if err != nil {
+		return nil, fmt.Errorf("failed to collect routes: %w", err)
+	}
+
+	// Format routes for response
+	routeList := make([]map[string]interface{}, len(routes))
+	for i, route := range routes {
+		routeList[i] = map[string]interface{}{
+			"destination": route.Destination,
+			"gateway":     route.Gateway,
+			"interface":   route.Interface,
+			"flags":       route.Flags,
+			"metric":      route.Metric,
+		}
+	}
+
+	return map[string]interface{}{
+		"status": "completed",
+		"routes": routeList,
+		"count":  len(routeList),
+	}, nil
+}
+
+type CheckUpdatesVerb struct {
+	collector *collect.Collector
+}
+
+func NewCheckUpdatesVerb() *CheckUpdatesVerb {
+	return &CheckUpdatesVerb{
+		collector: collect.New(),
+	}
+}
+
+func (v *CheckUpdatesVerb) Execute(params map[string]interface{}) (map[string]interface{}, error) {
+	updateInfo, err := v.collector.CollectUpdates()
+	if err != nil {
+		// Return partial result if package manager not found
+		if updateInfo != nil && updateInfo.PackageManager == "none" {
+			return map[string]interface{}{
+				"status":          "completed",
+				"package_manager": "none",
+				"update_count":    0,
+				"packages":         []interface{}{},
+				"message":          "No supported package manager found",
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to check updates: %w", err)
+	}
+
+	// Format packages for response
+	packages := make([]map[string]interface{}, len(updateInfo.Packages))
+	for i, pkg := range updateInfo.Packages {
+		packages[i] = map[string]interface{}{
+			"name":      pkg.Name,
+			"current":   pkg.Current,
+			"available": pkg.Available,
+		}
+	}
+
+	return map[string]interface{}{
+		"status":          "completed",
+		"package_manager": updateInfo.PackageManager,
+		"update_count":    updateInfo.UpdateCount,
+		"packages":        packages,
+		"last_checked":    updateInfo.LastChecked.Format(time.RFC3339),
 	}, nil
 }
