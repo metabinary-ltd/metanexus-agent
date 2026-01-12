@@ -1,0 +1,9 @@
+bin/
+*.log
+*.pem
+*.key
+*.crt
+.env
+.DS_Store
+vendor/
+
