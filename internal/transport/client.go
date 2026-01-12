@@ -2,14 +2,13 @@ package transport
 
 import (
 	"bytes"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
-	"github.com/metanexus/metanexus-agent/internal/identity"
+	"github.com/metabinary-ltd/metanexus-agent/internal/identity"
 )
 
 type Client struct {

@@ -6,15 +6,15 @@ import (
 	"log"
 	"time"
 
-	"github.com/metanexus/metanexus-agent/internal/actions"
-	"github.com/metanexus/metanexus-agent/internal/collect"
-	"github.com/metanexus/metanexus-agent/internal/identity"
-	"github.com/metanexus/metanexus-agent/internal/transport"
+	"github.com/metabinary-ltd/metanexus-agent/internal/actions"
+	"github.com/metabinary-ltd/metanexus-agent/internal/collect"
+	"github.com/metabinary-ltd/metanexus-agent/internal/identity"
+	"github.com/metabinary-ltd/metanexus-agent/internal/transport"
 )
 
 type Config struct {
-	ControlPlaneURL string        `yaml:"control_plane_url"`
-	DataDir         string        `yaml:"data_dir"`
+	ControlPlaneURL   string        `yaml:"control_plane_url"`
+	DataDir           string        `yaml:"data_dir"`
 	TelemetryInterval time.Duration `yaml:"telemetry_interval"`
 }
 
@@ -29,8 +29,8 @@ type Agent struct {
 func New(configPath string) (*Agent, error) {
 	// TODO: Load config from file
 	config := &Config{
-		ControlPlaneURL: "http://localhost:3000",
-		DataDir:         "/var/lib/metanexus-agent",
+		ControlPlaneURL:   "http://localhost:3000",
+		DataDir:           "/var/lib/metanexus-agent",
 		TelemetryInterval: 30 * time.Second,
 	}
 
@@ -98,17 +98,6 @@ func (a *Agent) telemetryLoop(ctx context.Context) {
 	}
 }
 
-func (a *Agent) sendTelemetry(ctx context.Context) error {
-	data, err := a.collector.CollectAll()
-	if err != nil {
-		return fmt.Errorf("failed to collect telemetry: %w", err)
-	}
-
-	// TODO: Send via transport
-	_ = data
-	return nil
-}
-
 func (a *Agent) actionLoop(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
@@ -123,4 +112,3 @@ func (a *Agent) actionLoop(ctx context.Context) {
 		}
 	}
 }
-

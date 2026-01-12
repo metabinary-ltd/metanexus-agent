@@ -2,12 +2,11 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/metanexus/metanexus-agent/internal/collect"
-	"github.com/metanexus/metanexus-agent/pkg/model"
+	"github.com/metabinary-ltd/metanexus-agent/internal/collect"
+	"github.com/metabinary-ltd/metanexus-agent/pkg/model"
 )
 
 func (a *Agent) sendTelemetry(ctx context.Context) error {
@@ -32,11 +31,6 @@ func (a *Agent) sendTelemetry(ctx context.Context) error {
 	}
 
 	// Send via transport
-	jsonData, err := json.Marshal(telemetry)
-	if err != nil {
-		return fmt.Errorf("failed to marshal telemetry: %w", err)
-	}
-
 	resp, err := a.transport.Post(fmt.Sprintf("/api/v1/agents/%s/telemetry", agentID), telemetry)
 	if err != nil {
 		return fmt.Errorf("failed to send telemetry: %w", err)
@@ -82,10 +76,10 @@ func convertInventory(inv collect.InventoryData) model.Inventory {
 
 func convertHealth(health collect.HealthData) model.Health {
 	return model.Health{
-		Load:              health.Load,
+		Load:               health.Load,
 		MemoryUsagePercent: health.MemoryUsagePercent,
 		DiskUsagePercent:   health.DiskUsagePercent,
-		UptimeSeconds:     health.UptimeSeconds,
+		UptimeSeconds:      health.UptimeSeconds,
 	}
 }
 
@@ -112,12 +106,12 @@ func convertTopology(topology collect.TopologyData) model.Topology {
 	containers := make([]model.Container, len(topology.Containers))
 	for i, container := range topology.Containers {
 		containers[i] = model.Container{
-			ID:      container.ID,
-			Name:    container.Name,
-			Image:   container.Image,
-			Status:  container.Status,
+			ID:       container.ID,
+			Name:     container.Name,
+			Image:    container.Image,
+			Status:   container.Status,
 			Networks: container.Networks,
-			IP:      container.IP,
+			IP:       container.IP,
 		}
 	}
 
@@ -127,4 +121,3 @@ func convertTopology(topology collect.TopologyData) model.Topology {
 		Containers:   containers,
 	}
 }
-

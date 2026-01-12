@@ -3,8 +3,8 @@ package actions
 import (
 	"fmt"
 
-	"github.com/metanexus/metanexus-agent/internal/identity"
-	"github.com/metanexus/metanexus-agent/internal/transport"
+	"github.com/metabinary-ltd/metanexus-agent/internal/identity"
+	"github.com/metabinary-ltd/metanexus-agent/internal/transport"
 )
 
 type Executor struct {
@@ -49,4 +49,3 @@ func (e *Executor) Execute(actionID string, verb string, params map[string]inter
 }
 
 // Verb implementations are in verbs.go
-

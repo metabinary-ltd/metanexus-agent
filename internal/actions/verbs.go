@@ -8,8 +8,8 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
-	"github.com/metanexus/metanexus-agent/internal/collect"
-	"github.com/metanexus/metanexus-agent/internal/identity"
+	"github.com/metabinary-ltd/metanexus-agent/internal/collect"
+	"github.com/metabinary-ltd/metanexus-agent/internal/identity"
 )
 
 type UpdateContainerVerb struct {
@@ -115,10 +115,10 @@ func (v *UpdateContainerVerb) Execute(params map[string]interface{}) (map[string
 	}
 
 	return map[string]interface{}{
-		"status":        "completed",
-		"container_id":  createResp.ID,
+		"status":         "completed",
+		"container_id":   createResp.ID,
 		"container_name": containerName,
-		"image":         imageName,
+		"image":          imageName,
 	}, nil
 }
 
@@ -144,7 +144,7 @@ func (v *HealthSnapshotVerb) Execute(params map[string]interface{}) (map[string]
 	}
 
 	result := map[string]interface{}{
-		"status": "completed",
+		"status":    "completed",
 		"timestamp": fmt.Sprintf("%d", time.Now().Unix()),
 	}
 
@@ -152,10 +152,10 @@ func (v *HealthSnapshotVerb) Execute(params map[string]interface{}) (map[string]
 	health, err := v.collector.CollectHealth()
 	if err == nil {
 		result["health"] = map[string]interface{}{
-			"load":                health.Load,
+			"load":                 health.Load,
 			"memory_usage_percent": health.MemoryUsagePercent,
 			"disk_usage_percent":   health.DiskUsagePercent,
-			"uptime_seconds":      health.UptimeSeconds,
+			"uptime_seconds":       health.UptimeSeconds,
 		}
 	}
 
@@ -196,8 +196,7 @@ func (v *RotateIdentityVerb) Execute(params map[string]interface{}) (map[string]
 	return nil, fmt.Errorf("identity rotation requires re-pairing - not yet implemented")
 
 	return map[string]interface{}{
-		"status": "completed",
+		"status":  "completed",
 		"message": "New identity generated. Re-pairing required.",
 	}, nil
 }
-

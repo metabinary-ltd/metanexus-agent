@@ -13,29 +13,29 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/metanexus/metanexus-agent/internal/transport"
+	"github.com/metabinary-ltd/metanexus-agent/internal/transport"
 )
 
 type ActionCatalog struct {
-	Version   string          `json:"version"`
-	IssuedAt  string          `json:"issued_at"`
-	Actions   []ActionDef     `json:"actions"`
+	Version   string           `json:"version"`
+	IssuedAt  string           `json:"issued_at"`
+	Actions   []ActionDef      `json:"actions"`
 	Signature CatalogSignature `json:"signature"`
 }
 
 type ActionDef struct {
-	ID                  string                 `json:"id"`
-	Verb                string                 `json:"verb"`
-	Name                string                 `json:"name"`
-	Description         string                 `json:"description"`
-	YAML                string                 `json:"yaml"`
-	RequiredCapabilities []string              `json:"required_capabilities,omitempty"`
-	Parameters         map[string]interface{} `json:"parameters,omitempty"`
+	ID                   string                 `json:"id"`
+	Verb                 string                 `json:"verb"`
+	Name                 string                 `json:"name"`
+	Description          string                 `json:"description"`
+	YAML                 string                 `json:"yaml"`
+	RequiredCapabilities []string               `json:"required_capabilities,omitempty"`
+	Parameters           map[string]interface{} `json:"parameters,omitempty"`
 }
 
 type CatalogSignature struct {
-	Algorithm  string `json:"algorithm"`
-	Value      string `json:"value"`
+	Algorithm   string `json:"algorithm"`
+	Value       string `json:"value"`
 	Certificate string `json:"certificate,omitempty"`
 }
 
@@ -94,7 +94,7 @@ func ValidateCatalog(catalog *ActionCatalog, caCertPEM []byte) error {
 
 	// Reconstruct payload for verification (without signature)
 	payload := map[string]interface{}{
-		"version":  catalog.Version,
+		"version":   catalog.Version,
 		"issued_at": catalog.IssuedAt,
 		"actions":   catalog.Actions,
 	}
@@ -140,4 +140,3 @@ func ValidateCatalog(catalog *ActionCatalog, caCertPEM []byte) error {
 
 	return nil
 }
-

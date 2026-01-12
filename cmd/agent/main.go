@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/metanexus/metanexus-agent/internal/agent"
+	"github.com/metabinary-ltd/metanexus-agent/internal/agent"
 )
 
 var (
@@ -52,4 +52,3 @@ func main() {
 		log.Fatalf("Agent error: %v", err)
 	}
 }
-

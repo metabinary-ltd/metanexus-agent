@@ -5,7 +5,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func (c *Collector) CollectHealth() (*HealthData, error) {

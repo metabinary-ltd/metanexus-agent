@@ -1,9 +1,7 @@
 package collect
 
 import (
-	"encoding/json"
 	"fmt"
-	"time"
 )
 
 type Collector struct{}
